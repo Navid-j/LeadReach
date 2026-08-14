@@ -39,12 +39,15 @@ and extract emails / phones / WhatsApp, shown on the dashboard.
 - [x] `.gitignore`: ignores `contacts.json`, `dashboard_preview.html`,
       chromedriver license files.
 - [x] Committed the feature (clean commit, no personal data).
+- [x] `update.bat` (new): git pull + pip install + optional exe rebuild.
+      Works from repo root or from `dist\`. Requires a git clone with a remote
+      (origin = https://github.com/Navid-j/LeadReach.git). Run it AFTER pushing.
 
 ### Next steps / decisions (ask the user)
 
-- [ ] **Update mechanism** — decide how end users update the app without
-      re-downloading a big exe every time (git pull from source vs self-updating
-      exe vs hybrid). Design decision — see chat.
+- [x] **Update mechanism (v1)** — `update.bat` decided on: git-pull based,
+      lightweight. Caveat: works only on machines with a git clone + remote;
+      the exe itself needs a rebuild after pull (scripted in the bat).
 - [ ] Decide: bundle `dashboard_server.py` as its own exe in the .spec file?
       (google_100_tabs exe already picks up `contact_extractor` via import.)
 - [ ] Rebuild `dist/google_100_tabs.exe` when a new build is wanted
