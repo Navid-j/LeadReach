@@ -123,6 +123,19 @@ pyinstaller google_100_tabs.spec
 The executable is written to `dist/google_100_tabs.exe`. Run it from a folder that
 also contains `config.json` and `chromedriver.exe` (both auto-created / downloadable).
 
+### Distributing to end users (no Python / git on their machine)
+
+Zip the contents of `dist\` (`google_100_tabs.exe` + `chromedriver.exe` + `update_user.bat`)
+and send the zip. The user unzips it and double-clicks the exe — no Python or git
+needed. `filter.txt`, `config.json` and `chromedriver.exe` are created/downloaded
+automatically on first run.
+
+To let users update themselves, upload the new exe to **GitHub Releases** with the
+asset name exactly `google_100_tabs.exe`; then the user just double-clicks
+`update_user.bat` (it downloads the latest exe via curl, built into Windows 10+).
+`update.bat` at the repo root is the **developer** updater (git pull + rebuild) and
+must not be sent to end users.
+
 ## Compliance notice
 
 This tool is intended for **legitimate, permission-based outreach** (e.g. contacting
