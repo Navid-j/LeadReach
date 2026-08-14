@@ -136,6 +136,16 @@ asset name exactly `google_100_tabs.exe`; then the user just double-clicks
 `update.bat` at the repo root is the **developer** updater (git pull + rebuild) and
 must not be sent to end users.
 
+### Versioning
+
+- The version lives in one place: `APP_VERSION = "1.0.0"` at the top of
+  `google_100_tabs.py`. Bump it before a release.
+- The app prints its version at startup and shows it in the dashboard footer;
+  the exe file properties (right-click → Details) also show it.
+- The CI workflow tags each release `v<version>-b<build number>` (e.g. `v1.0.0-b2`)
+  and attaches a small `latest_version.txt`, so `update_user.bat` can show the
+  latest version before downloading.
+
 ## Compliance notice
 
 This tool is intended for **legitimate, permission-based outreach** (e.g. contacting
