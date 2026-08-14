@@ -16,6 +16,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 from urllib.parse import urlparse
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from contact_extractor import enrich_contacts
 
 # ========== SETTINGS ==========
 SEEN_FILE = "seen_domains.txt"
@@ -23,6 +24,7 @@ LOG_FILE = "log.txt"
 FILTER_FILE = "filter.txt"
 CONFIG_FILE = "config.json"
 DASHBOARD_FILE = "dashboard.html"
+CONTACTS_FILE = "contacts.json"
 
 # ========== FUNCTIONS ==========
 
@@ -46,11 +48,18 @@ def save_config(config):
 
 def get_chrome_profile():
     config = load_config()
-    if 'chrome_profile' in config:
-        print(f"Saved Chrome profile path: {config['chrome_profile']}")
+    saved = config.get('chrome_profile')
+    if saved and os.path.exists(saved) and config.get('profile_confirmed'):
+        print(f"Using saved Chrome profile: {saved}")
+        return saved
+    if saved and os.path.exists(saved):
+        print(f"Saved Chrome profile path: {saved}")
         use_saved = input("Use this profile? (yes/no): ").strip().lower()
         if use_saved == 'yes':
-            return config['chrome_profile']
+            config['profile_confirmed'] = True
+            save_config(config)
+            return saved
+        print("OK, let's set a new profile.\n")
     
     print("\n" + "="*60)
     print("CHROME PROFILE SETUP")
@@ -67,6 +76,7 @@ def get_chrome_profile():
         profile_path = input("\nEnter Chrome profile path: ").strip()
         if os.path.exists(profile_path):
             config['chrome_profile'] = profile_path
+            config['profile_confirmed'] = True
             save_config(config)
             return profile_path
         else:
@@ -327,9 +337,10 @@ def fetch_new_links_unlimited(driver, query, num_links, seen_domains, filters):
     print(f"\nTotal new links extracted: {len(new_links)} from {page_num} pages.")
     return new_links, new_domains, page_num
 
-def build_dashboard(links, domains, query, filename=DASHBOARD_FILE):
+def build_dashboard(links, domains, query, contacts=None, filename=DASHBOARD_FILE):
     """ساخت فایل HTML با دکمه‌های Open All و Open Selected و نمایش Search Term"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    contacts = contacts or {}
 
     contact_links = []
     for link in links:
@@ -337,7 +348,8 @@ def build_dashboard(links, domains, query, filename=DASHBOARD_FILE):
         protocol = parsed.scheme if parsed.scheme else "https"
         domain = get_domain_from_url(link)
         if domain:
-            contact_links.append(f"{protocol}://{domain}/contact")
+            info = contacts.get(domain, {})
+            contact_links.append(info.get("contact_url") or f"{protocol}://{domain}/contact")
         else:
             contact_links.append(link)  # fallback
     
@@ -427,6 +439,20 @@ def build_dashboard(links, domains, query, filename=DASHBOARD_FILE):
         #deselectAll:hover {{
             background: #757575;
         }}
+        #findContacts {{
+            background: #7e57c2;
+            color: white;
+        }}
+        #findContacts:hover {{
+            background: #673ab7;
+        }}
+        #extractEmails {{
+            background: #26a69a;
+            color: white;
+        }}
+        #extractEmails:hover {{
+            background: #00897b;
+        }}
         #counter {{
             padding: 10px 20px;
             background: #fff;
@@ -468,6 +494,31 @@ def build_dashboard(links, domains, query, filename=DASHBOARD_FILE):
         .link-item a:hover {{
             text-decoration: underline;
         }}
+        .badge {{
+            margin-left: 10px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: bold;
+        }}
+        .badge.ok {{
+            background: #e8f5e9;
+            color: #2e7d32;
+        }}
+        .badge.warn {{
+            background: #fff8e1;
+            color: #f57f17;
+        }}
+        .badge.err {{
+            background: #ffebee;
+            color: #c62828;
+        }}
+        .meta {{
+            margin-top: 3px;
+            font-size: 12px;
+            color: #555;
+            word-break: break-all;
+        }}
         .link-number {{
             color: #999;
             font-size: 12px;
@@ -500,6 +551,39 @@ def build_dashboard(links, domains, query, filename=DASHBOARD_FILE):
         .status-bar span {{
             font-weight: bold;
         }}
+        .list-toolbar {{
+            margin: 10px 0 6px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }}
+        .mini-btn {{
+            padding: 4px 12px;
+            font-size: 12px;
+            border: 1px solid #ccc;
+            border-radius: 12px;
+            background: #fafafa;
+            color: #555;
+            cursor: pointer;
+            transition: background 0.2s;
+        }}
+        .mini-btn:hover {{
+            background: #eee;
+        }}
+        .spinner {{
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #ccc;
+            border-top-color: #4CAF50;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }}
+        @keyframes spin {{
+            to {{ transform: rotate(360deg); }}
+        }}
     </style>
 </head>
 <body>
@@ -525,8 +609,8 @@ def build_dashboard(links, domains, query, filename=DASHBOARD_FILE):
     <div class="controls">
         <button id="openAll">🚀 Open All</button>
         <button id="openSelected">✅ Open Selected</button>
-        <button id="selectAll">✓ Select All</button>
-        <button id="deselectAll">✗ Deselect All</button>
+        <button id="findContacts">🔎 Find Contact Pages</button>
+        <button id="extractEmails">📧 Extract Emails</button>
         <span id="counter">Selected: 0 / {len(links)}</span>
     </div>
     
@@ -534,16 +618,45 @@ def build_dashboard(links, domains, query, filename=DASHBOARD_FILE):
         <span>💡 Tip:</span> Check the boxes next to links you want to open, then click "Open Selected".
     </div>
     
+    <div class="list-toolbar">
+        <button id="selectAll" class="mini-btn">✓ Select all</button>
+        <button id="deselectAll" class="mini-btn">✗ Deselect all</button>
+    </div>
+    
     <div class="link-list" id="linkList">
 '''
 
     for idx, (contact_url, domain) in enumerate(zip(contact_links, domains), 1):
         display_name = domain if domain else contact_url[:50]
+        info = contacts.get(domain, {}) if domain else {}
+        method_badge = ""
+        method = info.get("method", "")
+        if method == "candidate":
+            method_badge = "<span class='badge ok'>✓ contact</span>"
+        elif method == "homepage":
+            method_badge = "<span class='badge warn'>~ found</span>"
+        elif method == "fallback":
+            method_badge = "<span class='badge err'>? guess</span>"
+
+        emails = info.get("emails", []) or []
+        email_txt = ", ".join(emails[:3]) if emails else "—"
+        phone_txt = ", ".join(info.get("phones", [])[:2]) or ""
+        wa_txt = info.get("whatsapp") or ""
+        meta_parts = []
+        if emails:
+            meta_parts.append(f"📧 {email_txt}")
+        if phone_txt:
+            meta_parts.append(f"📞 {phone_txt}")
+        if wa_txt:
+            meta_parts.append(f"💬 WhatsApp: {wa_txt}")
+        meta_html = "<div class='meta'>" + " · ".join(meta_parts) + "</div>" if meta_parts else ""
+
         html_content += f'''
-        <div class="link-item">
+        <div class="link-item" data-domain="{domain if domain else ''}">
             <input type="checkbox" class="link-checkbox" data-url="{contact_url}">
             <span class="link-number">{idx}.</span>
-            <a href="{contact_url}" target="_blank">{display_name}</a>
+            <a href="{contact_url}" target="_blank" class="link-url">{display_name}</a>{method_badge}
+            {meta_html}
         </div>
 '''
 
@@ -551,7 +664,7 @@ def build_dashboard(links, domains, query, filename=DASHBOARD_FILE):
     </div>
     
     <div class="footer">
-        Dashboard generated by Google Link Extractor &amp; Opener<br>
+        Dashboard generated by Google Link Extractor &amp; Opener — made for Navid 🤝<br>
         {timestamp}
     </div>
     
@@ -614,6 +727,101 @@ def build_dashboard(links, domains, query, filename=DASHBOARD_FILE):
         
         // Initialize counter
         updateCounter();
+
+        // ===== Contact enrichment (requires dashboard_server.py on port 8765) =====
+        // When opened as file:// we must call the local server over http;
+        // when served by dashboard_server.py we are same-origin.
+        var API_BASE = (location.protocol === 'file:') ? 'http://127.0.0.1:8765' : '';
+
+        function setStatusBar(text, isError, busy) {{
+            var bar = document.getElementById('statusBar');
+            var icon = busy
+                ? '<span class="spinner"></span>'
+                : '<span>' + (isError ? '⚠️' : '✅') + '</span> ';
+            bar.innerHTML = icon + text;
+            bar.style.background = isError ? '#ffebee' : (busy ? '#fff8e1' : '#e8f5e9');
+        }}
+
+        function callContactApi(domain, findEmail, cb) {{
+            fetch(API_BASE + '/api/find-contacts', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ domain: domain, find_email: findEmail }})
+            }}).then(function (r) {{ return r.json(); }}).then(cb).catch(function () {{
+                cb({{ status: 'error', note: 'server offline' }});
+            }});
+        }}
+
+        function updateRow(item, info) {{
+            var urlEl = item.querySelector('a.link-url');
+            if (info.contact_url && info.contact_url !== urlEl.getAttribute('href')) {{
+                urlEl.setAttribute('href', info.contact_url);
+                var cb = item.querySelector('.link-checkbox');
+                if (cb) cb.setAttribute('data-url', info.contact_url);
+            }}
+            var method = info.method || '';
+            var cls = 'err', label = '? guess';
+            if (method === 'candidate') {{ cls = 'ok'; label = '✓ contact'; }}
+            else if (method === 'homepage') {{ cls = 'warn'; label = '~ found'; }}
+            var badge = item.querySelector('.badge');
+            if (!badge) {{
+                badge = document.createElement('span');
+                badge.className = 'badge';
+                urlEl.parentNode.insertBefore(badge, urlEl.nextSibling);
+            }}
+            badge.className = 'badge ' + cls;
+            badge.textContent = label;
+            var parts = [];
+            var emails = (info.emails || []).slice(0, 3);
+            var phones = (info.phones || []).slice(0, 2);
+            if (emails.length) parts.push('📧 ' + emails.join(', '));
+            if (phones.length) parts.push('📞 ' + phones.join(', '));
+            if (info.whatsapp) parts.push('💬 WhatsApp: ' + info.whatsapp);
+            var meta = item.querySelector('.meta');
+            if (parts.length) {{
+                if (!meta) {{
+                    meta = document.createElement('div');
+                    meta.className = 'meta';
+                    item.appendChild(meta);
+                }}
+                meta.innerHTML = parts.join(' · ');
+            }}
+        }}
+
+        function runContactJob(findEmail, label) {{
+            var items = document.querySelectorAll('.link-item');
+            var total = items.length;
+            if (!total) return;
+            var done = 0, failed = 0;
+            setStatusBar(label + '... 0/' + total, false, true);
+            for (var i = 0; i < items.length; i++) {{
+                (function (item) {{
+                    var domain = item.getAttribute('data-domain');
+                    if (!domain) {{ done++; checkDone(); return; }}
+                    callContactApi(domain, findEmail, function (info) {{
+                        done++;
+                        if (!info || info.status === 'error') failed++;
+                        else if (info.domain) updateRow(item, info);
+                        checkDone();
+                    }});
+                }})(items[i]);
+            }}
+            function checkDone() {{
+                setStatusBar(label + '... ' + done + '/' + total +
+                    (failed ? ' (' + failed + ' failed)' : ''), false, true);
+                if (done === total) {{
+                    setStatusBar(label + ' complete — ' +
+                        (total - failed) + '/' + total + ' updated.');
+                }}
+            }}
+        }}
+
+        document.getElementById('findContacts').addEventListener('click', function () {{
+            runContactJob(false, 'Finding contact pages');
+        }});
+        document.getElementById('extractEmails').addEventListener('click', function () {{
+            runContactJob(true, 'Extracting emails & phones');
+        }});
     </script>
 </body>
 </html>
@@ -704,7 +912,12 @@ def main():
             print(f"✅ Log saved to {LOG_FILE}")
             
             # ساخت داشبورد HTML
-            dashboard_path = build_dashboard(new_links, new_domains, query)
+            # ابتدا اطلاعات تماس (صفحه تماس + ایمیل/تلفن) را با Ollama استخراج می‌کنیم
+            config = load_config()
+            llm_config = config.get("llm", {})
+            contacts = enrich_contacts(new_domains, llm_config=llm_config)
+
+            dashboard_path = build_dashboard(new_links, new_domains, query, contacts=contacts)
             
             print("\n" + "="*70)
             print("🎯 DASHBOARD READY")

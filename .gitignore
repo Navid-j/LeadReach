@@ -3,12 +3,16 @@ config.json
 
 # Runtime data / generated output
 dashboard.html
+dashboard_preview.html
 seen_domains.txt
 log.txt
+contacts.json
 
-# ChromeDriver binary (downloaded automatically if missing)
+# ChromeDriver binary + its license files (downloaded automatically if missing)
 chromedriver.exe
 chromedriver
+LICENSE.chromedriver
+THIRD_PARTY_NOTICES.chromedriver
 
 # PyInstaller build output
 build/

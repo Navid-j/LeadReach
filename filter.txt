@@ -1,2 +1,5 @@
 wikipedia.org
 youtube.com
+facebook.com
+instagram.com
+telegram.com
