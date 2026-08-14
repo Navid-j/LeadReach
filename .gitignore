@@ -1,0 +1,26 @@
+# Personal config (contains your Chrome profile path — keep local only)
+config.json
+
+# Runtime data / generated output
+dashboard.html
+seen_domains.txt
+log.txt
+
+# ChromeDriver binary (downloaded automatically if missing)
+chromedriver.exe
+chromedriver
+
+# PyInstaller build output
+build/
+dist/
+*.spec.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Freebuff app data
+.freebuff/
