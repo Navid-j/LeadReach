@@ -969,6 +969,7 @@ def main():
         print("3. Check your internet connection")
         print("4. If chromedriver download failed, download it manually")
     
+    print(f"\n——— LeadReach v{APP_VERSION} ———")
     input("\nPress Enter to exit...")
 
 if __name__ == "__main__":
