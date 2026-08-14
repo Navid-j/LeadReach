@@ -107,7 +107,7 @@ phones / WhatsApp. Results are cached into `contacts.json`. The server binds to
 |------|---------|
 | `config.json` | Your saved Chrome profile path + Ollama settings (git-ignored — copy from `config.example.json`) |
 | `config.example.json` | Template for `config.json` (safe to commit) |
-| `filter.txt` | Domains to exclude from results (one per line, `#` for comments) |
+| `filter.txt` | Domains to exclude from results (auto-created with defaults on first run; one per line, `#` for comments) |
 | `seen_domains.txt` | Domains already extracted in previous runs (auto-managed) |
 | `log.txt` | Search log history (auto-managed) |
 | `contacts.json` | Contact info cache: contact URL, emails, phones, WhatsApp per domain (auto-managed) |

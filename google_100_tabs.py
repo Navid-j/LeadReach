@@ -26,6 +26,15 @@ CONFIG_FILE = "config.json"
 DASHBOARD_FILE = "dashboard.html"
 CONTACTS_FILE = "contacts.json"
 
+# Default domains written to filter.txt on first run (edit the file to customize)
+DEFAULT_FILTERS = [
+    "wikipedia.org",
+    "youtube.com",
+    "facebook.com",
+    "instagram.com",
+    "telegram.com",
+]
+
 # ========== FUNCTIONS ==========
 
 def get_base_path():
@@ -110,6 +119,17 @@ def save_seen(new_domains):
             f.write(domain + '\n')
 
 def load_filters():
+    if not os.path.exists(FILTER_FILE):
+        try:
+            with open(FILTER_FILE, 'w', encoding='utf-8') as f:
+                f.write("# Domains to exclude from results (one per line).\n")
+                f.write("# Lines starting with # are ignored.\n")
+                for domain in DEFAULT_FILTERS:
+                    f.write(domain + "\n")
+            print(f"Created {FILTER_FILE} with {len(DEFAULT_FILTERS)} default filters. "
+                  "Edit the file to add or remove domains.")
+        except Exception as e:
+            print(f"Warning: could not create {FILTER_FILE}: {e}")
     filters = set()
     if os.path.exists(FILTER_FILE):
         with open(FILTER_FILE, 'r', encoding='utf-8') as f:
